@@ -20,7 +20,6 @@ class OverlayService : Service() {
     private lateinit var fpsView: FpsCounterView
     private val mainHandler = Handler(Looper.getMainLooper())
 
-    private var targetWindowName: String? = null
     private var lastForegroundPackage: String? = null
     @Volatile private var running = false
 
@@ -28,6 +27,7 @@ class OverlayService : Service() {
         const val EXTRA_TARGET_PACKAGE = "target_package"
         private const val CHANNEL_ID = "fraps_overlay_channel"
         private const val NOTIF_ID = 1
+        private const val POLL_INTERVAL_MS = 1000L
     }
 
     override fun onCreate() {
@@ -42,7 +42,6 @@ class OverlayService : Service() {
         val fixedPackage = intent?.getStringExtra(EXTRA_TARGET_PACKAGE)
         if (!fixedPackage.isNullOrBlank()) {
             lastForegroundPackage = fixedPackage
-            targetWindowName = SurfaceFlingerFps.findWindowName(fixedPackage)
         }
 
         addOverlayView()
@@ -80,27 +79,30 @@ class OverlayService : Service() {
     private fun startFpsLoop(followForeground: Boolean) {
         running = true
         thread(name = "fps-poll") {
+            SurfaceFlingerFps.clear()
+            var windowStartNanos = System.nanoTime()
+
             while (running) {
+                Thread.sleep(POLL_INTERVAL_MS)
+
                 if (followForeground) {
                     val currentPackage = ForegroundApp.getCurrentPackage()
-                    if (currentPackage != null &&
-                        currentPackage != packageName &&
-                        currentPackage != lastForegroundPackage
-                    ) {
+                    if (currentPackage != null && currentPackage != packageName) {
                         lastForegroundPackage = currentPackage
-                        targetWindowName = SurfaceFlingerFps.findWindowName(currentPackage)
                     }
                 }
 
-                val window = targetWindowName
-                val fps = if (window != null) {
-                    SurfaceFlingerFps.computeFps(window).toInt()
-                } else 0
+                val elapsedSeconds = (System.nanoTime() - windowStartNanos) / 1_000_000_000.0
+                val pkg = lastForegroundPackage
+                val fps = if (pkg != null) SurfaceFlingerFps.dumpFps(pkg, elapsedSeconds) else 0
 
                 mainHandler.post { fpsView.fps = fps }
 
-                Thread.sleep(500)
+                SurfaceFlingerFps.clear()
+                windowStartNanos = System.nanoTime()
             }
+
+            SurfaceFlingerFps.disable()
         }
     }
 
