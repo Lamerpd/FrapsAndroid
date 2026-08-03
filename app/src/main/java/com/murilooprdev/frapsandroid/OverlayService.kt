@@ -21,6 +21,7 @@ class OverlayService : Service() {
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private var targetWindowName: String? = null
+    private var lastForegroundPackage: String? = null
     @Volatile private var running = false
 
     companion object {
@@ -38,13 +39,14 @@ class OverlayService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         startForeground(NOTIF_ID, buildNotification())
 
-        val targetPackage = intent?.getStringExtra(EXTRA_TARGET_PACKAGE)
-        if (targetPackage != null) {
-            targetWindowName = SurfaceFlingerFps.findWindowName(targetPackage)
+        val fixedPackage = intent?.getStringExtra(EXTRA_TARGET_PACKAGE)
+        if (!fixedPackage.isNullOrBlank()) {
+            lastForegroundPackage = fixedPackage
+            targetWindowName = SurfaceFlingerFps.findWindowName(fixedPackage)
         }
 
         addOverlayView()
-        startFpsLoop()
+        startFpsLoop(followForeground = fixedPackage.isNullOrBlank())
         return START_STICKY
     }
 
@@ -75,10 +77,21 @@ class OverlayService : Service() {
         windowManager.addView(fpsView, params)
     }
 
-    private fun startFpsLoop() {
+    private fun startFpsLoop(followForeground: Boolean) {
         running = true
         thread(name = "fps-poll") {
             while (running) {
+                if (followForeground) {
+                    val currentPackage = ForegroundApp.getCurrentPackage()
+                    if (currentPackage != null &&
+                        currentPackage != packageName &&
+                        currentPackage != lastForegroundPackage
+                    ) {
+                        lastForegroundPackage = currentPackage
+                        targetWindowName = SurfaceFlingerFps.findWindowName(currentPackage)
+                    }
+                }
+
                 val window = targetWindowName
                 val fps = if (window != null) {
                     SurfaceFlingerFps.computeFps(window).toInt()

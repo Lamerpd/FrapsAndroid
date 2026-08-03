@@ -25,11 +25,17 @@ class MainActivity : Activity() {
         }
 
         statusText = TextView(this).apply {
-            text = if (RootShell.isRootAvailable()) "Root: OK" else "Root: NÃO disponível"
+            text = if (RootShell.isRootAvailable()) "Root: OK" else "Root: NAO disponivel"
+        }
+
+        val autoLabel = TextView(this).apply {
+            text = "Modo automatico: segue qualquer app/tela em foco. " +
+                "So preenche o campo abaixo se quiser travar num pacote fixo."
+            setPadding(0, 24, 0, 8)
         }
 
         packageInput = EditText(this).apply {
-            hint = "pacote do app alvo (ex: com.mojang.minecraftpe)"
+            hint = "opcional: pacote fixo (ex: com.mojang.minecraftpe)"
         }
 
         val permissionButton = Button(this).apply {
@@ -48,6 +54,7 @@ class MainActivity : Activity() {
         }
 
         root.addView(statusText)
+        root.addView(autoLabel)
         root.addView(packageInput)
         root.addView(permissionButton)
         root.addView(startButton)
@@ -63,23 +70,26 @@ class MainActivity : Activity() {
             )
             startActivity(intent)
         } else {
-            Toast.makeText(this, "Permissão já concedida", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Permissao ja concedida", Toast.LENGTH_SHORT).show()
         }
     }
 
     private fun startOverlay() {
         if (!Settings.canDrawOverlays(this)) {
-            Toast.makeText(this, "Concede a permissão de overlay primeiro", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Concede a permissao de overlay primeiro", Toast.LENGTH_SHORT).show()
             return
         }
         val target = packageInput.text.toString().trim()
-        if (target.isEmpty()) {
-            Toast.makeText(this, "Digita o pacote do app alvo", Toast.LENGTH_SHORT).show()
-            return
-        }
         val intent = Intent(this, OverlayService::class.java).apply {
-            putExtra(OverlayService.EXTRA_TARGET_PACKAGE, target)
+            if (target.isNotEmpty()) {
+                putExtra(OverlayService.EXTRA_TARGET_PACKAGE, target)
+            }
         }
         startForegroundService(intent)
+        Toast.makeText(
+            this,
+            if (target.isEmpty()) "Modo automatico ativado" else "Travado em: $target",
+            Toast.LENGTH_SHORT
+        ).show()
     }
 }
