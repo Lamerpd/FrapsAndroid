@@ -16,19 +16,20 @@ object SurfaceFlingerFps {
         RootShell.exec("dumpsys SurfaceFlinger --timestats -clear")
     }
 
-    fun dumpFps(packageName: String, windowSeconds: Double): Int {
-        if (windowSeconds <= 0) return 0
-
+    fun dumpFps(packageName: String): Int {
         val output = RootShell.exec("dumpsys SurfaceFlinger --timestats -dump")
         if (output.isBlank()) return 0
 
         val blocks = output.split(Regex("(?=layerName\\s*=)"))
-        val block = blocks.firstOrNull { it.contains(packageName) } ?: return 0
+        val matches = blocks.filter { it.contains(packageName) }
+        if (matches.isEmpty()) return 0
 
-        val match = Regex("""totalFrames\s*=\s*(\d+)""").find(block) ?: return 0
-        val frames = match.groupValues[1].toIntOrNull() ?: return 0
+        val fpsValues = matches.mapNotNull { block ->
+            Regex("""averageFPS\s*=\s*([0-9]+\.?[0-9]*)""")
+                .find(block)?.groupValues?.get(1)?.toDoubleOrNull()
+        }
 
-        return (frames / windowSeconds).toInt()
+        return fpsValues.maxOrNull()?.toInt() ?: 0
     }
 
     fun disable() {

@@ -80,7 +80,6 @@ class OverlayService : Service() {
         running = true
         thread(name = "fps-poll") {
             SurfaceFlingerFps.clear()
-            var windowStartNanos = System.nanoTime()
 
             while (running) {
                 Thread.sleep(POLL_INTERVAL_MS)
@@ -92,14 +91,12 @@ class OverlayService : Service() {
                     }
                 }
 
-                val elapsedSeconds = (System.nanoTime() - windowStartNanos) / 1_000_000_000.0
                 val pkg = lastForegroundPackage
-                val fps = if (pkg != null) SurfaceFlingerFps.dumpFps(pkg, elapsedSeconds) else 0
+                val fps = if (pkg != null) SurfaceFlingerFps.dumpFps(pkg) else 0
 
                 mainHandler.post { fpsView.fps = fps }
 
                 SurfaceFlingerFps.clear()
-                windowStartNanos = System.nanoTime()
             }
 
             SurfaceFlingerFps.disable()
